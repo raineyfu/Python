@@ -27,7 +27,7 @@ class SrvData:
 
         # Game and Tournament
         'botsInGame': 5,  # Number of bots required to join before game can start.
-        'gamesToPlay': 1,  # Number of games to play before server quits.
+        'gamesToPlay': 100,  # Number of games to play before server quits.
         'stepMax': 1000,  # After this many steps in a game all bots will be killed
         # Amount of time server targets for each step. Server will sleep if game is running faster than this.
         'stepSec': 0.05,

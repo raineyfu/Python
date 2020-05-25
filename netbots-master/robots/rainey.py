@@ -39,6 +39,8 @@ def play(botSocket, srvConf):
         if getInfoReply['gameNumber'] != gameNumber:
             # A new game has started. Record new gameNumber and reset any variables back to their initial state
             gameNumber = getInfoReply['gameNumber']
+            # A new game has started. Record new gameNumber and reset any variables back to their initial state
+            gameNumber = getInfoReply['gameNumber']
             log("Game " + str(gameNumber) + " has started. Points so far = " + str(getInfoReply['points']))
 
             # start every new game in scan mode. No point waiting if we know we have not fired our canon yet.
@@ -52,8 +54,54 @@ def play(botSocket, srvConf):
 
             # Each scan will be this wide in radians (note, math.pi*2 radians is the same as 360 Degrees)
             scanSliceWidth = math.pi * 2 / scanSlices
+            cornerX = 0
+            cornerY = 0
+            try:
+                # get location data from server
+                getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
 
+                # find the closest corner:
+                if getLocationReply['x'] < srvConf['arenaSize'] / 2:
+                    cornerX = 0
+                else:
+                    cornerX = srvConf['arenaSize']
+
+                if getLocationReply['y'] < srvConf['arenaSize'] / 2:
+                    cornerY = 0
+                else:
+                    cornerY = srvConf['arenaSize']
+
+                # find the angle from where we are to the closest corner
+                radians = nbmath.angle(getLocationReply['x'], getLocationReply['y'], cornerX, cornerY)
+
+                # Turn in a new direction
+                botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': radians})
+
+                # Request we start accelerating to max speed
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 100})
+
+                # log some useful information.
+                degrees = str(int(round(math.degrees(radians))))
+                log("Requested to go " + degrees + " degress at max speed.", "INFO")
+
+            except nbipc.NetBotSocketException as e:
+                # Consider this a warning here. It may simply be that a request returned
+                # an Error reply because our health == 0 since we last checked. We can
+                # continue until the next game starts.
+                log(str(e), "WARNING")
+            continue
         try:
+            getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
+            if round(getLocationReply['x']) <= srvConf['botRadius'] + 100:
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+            elif round(getLocationReply['x']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+            elif round(getLocationReply['y']) <= srvConf['botRadius'] + 100:
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+            elif round(getLocationReply['y']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+            else:
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 100})
             if currentMode == "wait":
                 # find out if we already have a shell in the air. We need to wait for it to explode before
                 # we fire another shell. If we don't then the first shell will never explode!
@@ -76,10 +124,13 @@ def play(botSocket, srvConf):
                         {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': scanReply['distance']})
                     # make sure don't try and shoot again until this shell has exploded.
                     currentMode = "wait"
+                    nextScanSlice -= 1
+                else:
+                    nextScanSlice += 1
 
-                nextScanSlice += 1
-                if nextScanSlice == scanSlices:
+                if (nextScanSlice >= scanSlices | nextScanSlice < 0):
                     nextScanSlice = 0
+
         except nbipc.NetBotSocketException as e:
             # Consider this a warning here. It may simply be that a request returned
             # an Error reply because our health == 0 since we last checked. We can
