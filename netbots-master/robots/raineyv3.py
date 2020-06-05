@@ -16,12 +16,19 @@ from netbots_log import setLogLevel
 import netbots_ipc as nbipc
 import netbots_math as nbmath
 
-robotName = "raineyfuv1"
-
+robotName = "raineyfuv3"
+currentMode = "scan"
+distance = 0
+savedDirection = 0
+smallestDistance = 0
+health = 0
 
 def play(botSocket, srvConf):
+    global health
+    movingF = False
     gameNumber = 0  # The last game number bot got from the server (0 == no game has been started)
-
+    l = 0
+    r = 31
     while True:
         try:
             # Get information to determine if bot is alive (health > 0) and if a new game has started.
@@ -31,7 +38,7 @@ def play(botSocket, srvConf):
             log(str(e), "FAILURE")
             log("Is netbot server still running?")
             quit()
-
+        health = getInfoReply['health']
         if getInfoReply['health'] == 0:
             # we are dead, there is nothing we can do until we are alive again.
             continue
@@ -44,11 +51,12 @@ def play(botSocket, srvConf):
             log("Game " + str(gameNumber) + " has started. Points so far = " + str(getInfoReply['points']))
 
             # start every new game in scan mode. No point waiting if we know we have not fired our canon yet.
-            currentMode = "scan"
 
             # lighthouse will scan the area in this many slices (think pizza slices with this bot in the middle)
             scanSlices = 32
-
+            global currentMode
+            global savedDirection
+            global smallestDistance
             # This is the radians of where the next scan will be
             nextScanSlice = 0
 
@@ -79,7 +87,7 @@ def play(botSocket, srvConf):
 
                 # Request we start accelerating to max speed
                 botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 100})
-
+                movingI = True
                 # log some useful information.
                 degrees = str(int(round(math.degrees(radians))))
                 log("Requested to go " + degrees + " degress at max speed.", "INFO")
@@ -91,17 +99,31 @@ def play(botSocket, srvConf):
                 log(str(e), "WARNING")
             continue
         try:
-            getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
-            if round(getLocationReply['x']) <= srvConf['botRadius'] + 100:
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
-            elif round(getLocationReply['x']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
-            elif round(getLocationReply['y']) <= srvConf['botRadius'] + 100:
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
-            elif round(getLocationReply['y']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
-            else:
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 100})
+            if (movingI):
+                getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
+                if round(getLocationReply['x']) <= srvConf['botRadius'] + 100:
+                    botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+                    movingI = False
+                elif round(getLocationReply['x']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
+                    botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+                    movingI = False
+                elif round(getLocationReply['y']) <= srvConf['botRadius'] + 100:
+                    botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+                    movingI = False
+                elif round(getLocationReply['y']) >= srvConf['arenaSize'] - srvConf['botRadius'] - 100:
+                    botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 0})
+                    movingI = False
+                else:
+                    botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 100})
+
+            getInfoReply = botSocket.sendRecvMessage({'type': 'getInfoRequest'})
+            if (getInfoReply['health'] < health):
+                health = getInfoReply['health']
+                movingF = True
+
+            #if (movingF):
+             #   if (cornerX == 0 & cornerY == 0):
+
             if currentMode == "wait":
                 # find out if we already have a shell in the air. We need to wait for it to explode before
                 # we fire another shell. If we don't then the first shell will never explode!
@@ -111,24 +133,25 @@ def play(botSocket, srvConf):
                     currentMode = "scan"
 
             if currentMode == "scan":
-                scanRadStart = nextScanSlice * scanSliceWidth
-                scanRadEnd = min(scanRadStart + scanSliceWidth, math.pi * 2)
+                savedDirection = savedDirection - ((1/32) * 2 * math.pi)
+                temp = savedDirection + ((1/16) * 2 * math.pi)
+                if (savedDirection <= 0):
+                    savedDirection = 0
+                if (temp >= 2 * math.pi):
+                    temp = 2 * math.pi
                 scanReply = botSocket.sendRecvMessage(
-                    {'type': 'scanRequest', 'startRadians': scanRadStart, 'endRadians': scanRadEnd})
-
-                # if we found an enemy robot with our scan
-                if scanReply['distance'] != 0:
-                    # fire down the center of the slice we just scanned.
-                    fireDirection = scanRadStart + scanSliceWidth / 2
+                    {'type': 'scanRequest', 'startRadians': savedDirection,
+                     'endRadians': temp})
+                if (scanReply['distance'] != 0):
                     botSocket.sendRecvMessage(
-                        {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': scanReply['distance']})
-                    # make sure don't try and shoot again until this shell has exploded.
+                        {'type': 'fireCanonRequest', 'direction': ((savedDirection) + (savedDirection + (1/16 * 2 *math.pi))) / 2, 'distance': scanReply['distance']})
                     currentMode = "wait"
-
-                nextScanSlice += 1
-                if nextScanSlice == scanSlices:
-                    nextScanSlice = 0
-
+                else:
+                    scanReply = botSocket.sendRecvMessage(
+                        {'type': 'scanRequest', 'startRadians': 0,
+                         'endRadians': 2 * math.pi})
+                    smallestDistance = scanReply['distance']
+                    binarySearch(0, 128)
 
         except nbipc.NetBotSocketException as e:
             # Consider this a warning here. It may simply be that a request returned
@@ -140,6 +163,42 @@ def play(botSocket, srvConf):
 ##################################################################
 # Standard stuff below.
 ##################################################################
+def binarySearch(l, r):
+    # Check base case
+    if r >= l:
+        global currentMode
+        global savedDirection
+        global smallestDistance
+        mid = l + (r - l) / 2
+        print(str(l) + " " + str(mid) + " " +  str(r))
+        # If element is present at the middle itself
+        if (mid >= r - 1):
+            fireDirection = ((((mid + r) / 2) / 128) * 2 * math.pi)
+            savedDirection = fireDirection
+            currentMode = "wait"
+            botSocket.sendRecvMessage(
+                {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+        elif (mid <= l + 1):
+            fireDirection = ((((mid + l) / 2) / 128) * 2 * math.pi)
+            savedDirection = fireDirection
+            currentMode = "wait"
+            botSocket.sendRecvMessage(
+                {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+        scanReply = botSocket.sendRecvMessage(
+            {'type': 'scanRequest', 'startRadians': (l / 128) * 2 * math.pi, 'endRadians': (mid / 128) * 2 * math.pi})
+        print("scan" + str((l/128) * 2 * math.pi) + " " + str((mid/128) * 2 * math.pi))
+        if ((scanReply['distance'] >= smallestDistance - float(10)) & (scanReply['distance'] <= smallestDistance + float(10))):
+            smallestDistance = scanReply['distance']
+            return binarySearch(l, mid - 1)
+            # Else the element can only be present
+        # in right subarray
+        else:
+            return binarySearch(mid + 1, r)
+    else:
+        # Element is not present in the array
+        return -1
+
+
 
 
 def quit(signal=None, frame=None):
