@@ -16,7 +16,7 @@ from netbots_log import setLogLevel
 import netbots_ipc as nbipc
 import netbots_math as nbmath
 
-robotName = "raineyfuv3"
+robotName = "raineyfinal"
 currentMode = "scan"
 distance = 0
 savedDirection = 0
@@ -240,7 +240,7 @@ def binarySearch(l, r):
         #print("scan" + str((l/128) * 2 * math.pi) + " " + str((mid/128) * 2 * math.pi))
         if ((scanReply['distance'] >= smallestDistance - float(30)) and (scanReply['distance'] <= smallestDistance + float(30))):
             smallestDistance = scanReply['distance']
-            return binarySearch(l, mid)
+            return binarySearch(l, mid - 1)
             # Else the element can only be present
         # in right subarray
         else:
