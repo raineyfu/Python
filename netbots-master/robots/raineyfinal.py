@@ -18,11 +18,11 @@ import netbots_math as nbmath
 
 robotName = "raineyfinal"
 currentMode = "scan"
-distance = 0
-savedDirection = 0
+savedDirection = -1
 smallestDistance = 0
 health = 0
 vertical = True
+stepCount = 0
 
 def play(botSocket, srvConf):
     global health
@@ -83,27 +83,19 @@ def play(botSocket, srvConf):
                 if not getCanonReply['shellInProgress']:
                     # we are ready to shoot again!
                     currentMode = "scan"
-
             if currentMode == "scan":
-                savedDirection = savedDirection - ((1/32) * 2 * math.pi)
-                temp = savedDirection + ((1/20) * 2 * math.pi)
-                if (savedDirection <= 0):
-                    savedDirection = 0
-                if (temp >= 2 * math.pi):
-                    temp = 2 * math.pi
-                scanReply = botSocket.sendRecvMessage(
-                    {'type': 'scanRequest', 'startRadians': savedDirection,
-                     'endRadians': temp})
-                if (scanReply['distance'] != 0):
-                    botSocket.sendRecvMessage(
-                        {'type': 'fireCanonRequest', 'direction': ((savedDirection) + temp) / 2, 'distance': scanReply['distance']})
-                    currentMode = "wait"
-                    savedDirection = (savedDirection + temp) / 2
+                scanReply = botSocket.sendRecvMessage({'type': 'scanRequest', 'startRadians': 0, 'endRadians': 2*math.pi})
+                smallestDistance = scanReply['distance']
+                if (savedDirection != -1):
+                    temp1 = savedDirection - 15
+                    temp2 = savedDirection + 15
+                    if (temp1 < 0):
+                        temp1 = 0
+                    if (temp2 > 128):
+                        temp2 = 128
+                    binarySearch(temp1, temp2)
+                    savedDirection = -1
                 else:
-                    scanReply = botSocket.sendRecvMessage(
-                        {'type': 'scanRequest', 'startRadians': 0,
-                         'endRadians': 2 * math.pi})
-                    smallestDistance = scanReply['distance']
                     binarySearch(0, 128)
             getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
 
@@ -225,26 +217,29 @@ def binarySearch(l, r):
         #print(str(l) + " " + str(mid) + " " + str(r))
         if (mid >= r - 1):
             fireDirection = ((((mid + r) / 2) / 128) * 2 * math.pi)
-            savedDirection = fireDirection
+            savedDirection = (mid + r) / 2
             currentMode = "wait"
             botSocket.sendRecvMessage(
                 {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+            return
         elif (mid <= l + 1):
             fireDirection = ((((mid + l) / 2) / 128) * 2 * math.pi)
-            savedDirection = fireDirection
+            savedDirection = (mid + l) / 2
             currentMode = "wait"
             botSocket.sendRecvMessage(
                 {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+            return
         scanReply = botSocket.sendRecvMessage(
             {'type': 'scanRequest', 'startRadians': (l / 128) * 2 * math.pi, 'endRadians': (mid / 128) * 2 * math.pi})
+
         #print("scan" + str((l/128) * 2 * math.pi) + " " + str((mid/128) * 2 * math.pi))
         if ((scanReply['distance'] >= smallestDistance - float(30)) and (scanReply['distance'] <= smallestDistance + float(30))):
             smallestDistance = scanReply['distance']
-            return binarySearch(l, mid - 1)
+            return binarySearch(l, mid)
             # Else the element can only be present
         # in right subarray
         else:
-            return binarySearch(mid + 1, r)
+            return binarySearch(mid, r)
     else:
         # Element is not present in the array
         return -1
