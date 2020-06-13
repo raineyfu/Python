@@ -24,6 +24,8 @@ vertical = True
 stepCount = 0
 previousX = -1
 previousY = -1
+shotX = -1
+shotY = -1
 stepCount = 0
 shotCount = 0
 thisDirection = -1
@@ -38,44 +40,69 @@ def play(botSocket, srvConf):
     global savedDirection
     global smallestDistance
     global thisDirection
+    gameNumber = 0
     movingF = False
     movingI = True
     start = True
-    gameNumber = 0  # The last game number bot got from the server (0 == no game has been started)
-    l = 0
-    r = 31
-    cornerX = 0
-    cornerY = 0
     while True:
-        if (start == True):
+        try:
+            # Get information to determine if bot is alive (health > 0) and if a new game has started.
+            getInfoReply = botSocket.sendRecvMessage({'type': 'getInfoRequest'})
+        except nbipc.NetBotSocketException as e:
+            # We are always allowed to make getInfoRequests, even if our health == 0. Something serious has gone wrong.
+            log(str(e), "FAILURE")
+            log("Is netbot server still running?")
+            quit()
+        health = getInfoReply['health']
+        if getInfoReply['health'] == 0:
+            # we are dead, there is nothing we can do until we are alive again.
+            continue
+
+        if getInfoReply['gameNumber'] != gameNumber:
+            # A new game has started. Record new gameNumber and reset any variables back to their initial state
+            gameNumber = getInfoReply['gameNumber']
+            log("Game " + str(gameNumber) + " has started. Points so far = " + str(getInfoReply['points']))
+
+            # start every new game in scan mode. No point waiting if we know we have not fired our canon yet.
+
+            # lighthouse will scan the area in this many slices (think pizza slices with this bot in the middle)
+            scanSlices = 32
+            global currentMode
+            global savedDirection
+            global smallestDistance
+            # This is the radians of where the next scan will be
+            nextScanSlice = 0
+
+            # Each scan will be this wide in radians (note, math.pi*2 radians is the same as 360 Degrees)
+            scanSliceWidth = math.pi * 2 / scanSlices
             try:
                 # get location data from server
                 getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
 
                 # find the closest corner:
                 if (getLocationReply['x'] < (srvConf['arenaSize'] / 2)):
-                    cornerX = 300
+                    cornerX = 200
                 else:
-                    cornerX = 700
+                    cornerX = 800
 
                 if (getLocationReply['y'] < (srvConf['arenaSize'] / 2)):
                     cornerY = 200
                 else:
                     cornerY = 800
-                previousX = getLocationReply['x']
-                previousY = getLocationReply['y']
+
                 # find the angle from where we are to the closest corner
                 radians = nbmath.angle(getLocationReply['x'], getLocationReply['y'], cornerX, cornerY)
 
                 # Turn in a new direction
                 botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': radians})
-                movingI = True
+
                 # Request we start accelerating to max speed
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 50})
-                start = False
+                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 75})
+                movingI = True
                 # log some useful information.
                 degrees = str(int(round(math.degrees(radians))))
                 log("Requested to go " + degrees + " degress at max speed.", "INFO")
+
             except nbipc.NetBotSocketException as e:
                 # Consider this a warning here. It may simply be that a request returned
                 # an Error reply because our health == 0 since we last checked. We can
@@ -83,39 +110,10 @@ def play(botSocket, srvConf):
                 log(str(e), "WARNING")
             continue
         try:
-            if currentMode == "wait":
-                stepDif = stepCount - shotCount
-                if ((stepDif + 1) * 40 >= smallestDistance):
-                    currentMode = "scan"
-            if currentMode == "scan":
-                savedDirection = (savedDirection/64 * 2 *math.pi) - ((1/32) * 2 * math.pi)
-                temp = savedDirection + ((1 / 20) * 2 * math.pi)
-                if (savedDirection <= 0):
-                    savedDirection = 0
-                if (temp >= 2 * math.pi):
-                    temp = 2 * math.pi
-
-                scanReply = botSocket.sendRecvMessage(
-                    {'type': 'scanRequest', 'startRadians': savedDirection,
-                     'endRadians': temp})
-                stepCount += 1
-                if (scanReply['distance'] != 0):
-                    botSocket.sendRecvMessage(
-                        {'type': 'fireCanonRequest', 'direction': ((savedDirection) + temp) / 2,
-                         'distance': scanReply['distance']})
-                    stepCount += 1
-                    shotCount = stepCount
-                    currentMode = "wait"
-                    savedDirection = (savedDirection + temp) / 2
-                else:
-                    scanReply = botSocket.sendRecvMessage(
-                        {'type': 'scanRequest', 'startRadians': 0, 'endRadians': 2 * math.pi})
-                    stepCount += 1
-                    smallestDistance = scanReply['distance']
-                    binarySearch(0, 64)
+            checkShot()
             getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
             stepCount += 1
-
+            checkShot()
             if (getLocationReply['x'] < (srvConf['arenaSize'] / 2)):
                 cornerX = 0
             else:
@@ -154,7 +152,7 @@ def play(botSocket, srvConf):
                 if (cornerX == 0 and cornerY == 0):
                     if (int(getLocationReply['y']) >= 400):
                         botSocket.sendRecvMessage(
-                            {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi)/ 2})
+                            {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 0
                     elif (int(getLocationReply['y']) <= 200):
@@ -204,6 +202,19 @@ def play(botSocket, srvConf):
 ##################################################################
 # Standard stuff below.
 ##################################################################
+def checkShot():
+    global currentMode
+    global shotCount
+    global smallestDistance
+    global savedDirection
+    global stepCount
+    stepDif = stepCount - shotCount
+    if ((stepDif + 8) * 40 >= smallestDistance):
+        scanReply = botSocket.sendRecvMessage(
+            {'type': 'scanRequest', 'startRadians': 0, 'endRadians': 2 * math.pi})
+        stepCount += 1
+        smallestDistance = scanReply['distance']
+        binarySearch(0, 64)
 def binarySearch(l, r):
     # Check base case
     if r >= l:
@@ -212,28 +223,57 @@ def binarySearch(l, r):
         global smallestDistance
         global previousX
         global previousY
+        global shotX
+        global shotY
         global stepCount
         global shotCount
         mid = (l + r) / 2
         # If element is present at the middle itself
         if (mid >= r - 1):
             fireDirection = ((((mid + r) / 2) / 64) * 2 * math.pi)
-            savedDirection = (mid + l) / 2
+            savedDirection = (mid + r) / 2
             currentMode = "wait"
-
-            botSocket.sendRecvMessage(
-                {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+            tempX = smallestDistance * math.cos(fireDirection)
+            tempY = smallestDistance * math.sin(fireDirection)
+            if (nbmath.distance(shotX, shotY, tempX, tempY) < 30 and shotX != -1):
+                tempSteps = smallestDistance // 40
+                tempAngle = nbmath.angle(shotX, shotY, tempX, tempY)
+                v = nbmath.distance(tempX, tempY, shotX, shotY)
+                newX = previousX + (math.cos(tempAngle) * tempSteps * v)
+                newY = previousY + (math.sin(tempAngle) * tempSteps * v)
+                newAngle = nbmath.angle(previousX, previousY, newX,newY)
+                botSocket.sendRecvMessage(
+                    {'type': 'fireCanonRequest', 'direction': newAngle, 'distance': smallestDistance})
+            else:
+                botSocket.sendRecvMessage(
+                    {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
             stepCount += 1
             shotCount = stepCount
+            shotX = tempX
+            shotY = tempY
             return
         elif (mid <= l + 1):
             fireDirection = ((((mid + l) / 2) / 64) * 2 * math.pi)
             savedDirection = (mid + l) / 2
             currentMode = "wait"
-            botSocket.sendRecvMessage(
-                {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
+            tempX = smallestDistance * math.cos(fireDirection)
+            tempY = smallestDistance * math.sin(fireDirection)
+            if (nbmath.distance(shotX, shotY, tempX, tempY) < 30 and shotX != -1):
+                tempSteps = smallestDistance // 40
+                tempAngle = nbmath.angle(shotX, shotY, tempX, tempY)
+                v = nbmath.distance(tempX, tempY, shotX, shotY)
+                newX = previousX + (math.cos(tempAngle) * tempSteps * v)
+                newY = previousY + (math.sin(tempAngle) * tempSteps * v)
+                newAngle = nbmath.angle(previousX, previousY, newX,newY)
+                botSocket.sendRecvMessage(
+                    {'type': 'fireCanonRequest', 'direction': newAngle, 'distance': smallestDistance})
+            else:
+                botSocket.sendRecvMessage(
+                    {'type': 'fireCanonRequest', 'direction': fireDirection, 'distance': smallestDistance})
             stepCount += 1
             shotCount = stepCount
+            shotX = tempX
+            shotY = tempY
             return
         scanReply = botSocket.sendRecvMessage(
             {'type': 'scanRequest', 'startRadians': (l / 64) * 2 * math.pi, 'endRadians': (mid / 64) * 2 * math.pi})
