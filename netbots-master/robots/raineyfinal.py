@@ -28,6 +28,7 @@ shotY = -1
 stepCount = 0
 shotCount = 0
 thisDirection = -1
+saved = False
 
 def play(botSocket, srvConf):
     global health
@@ -56,13 +57,13 @@ def play(botSocket, srvConf):
     movingF = False
     movingI = True
     start = True
+    checkLocation = True
 
     while True:
         try:
             checkShot()
             getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
             stepCount += 1
-            checkShot()
             if (getLocationReply['x'] < (srvConf['arenaSize'] / 2)):
                 cornerX = 0
             else:
@@ -100,67 +101,67 @@ def play(botSocket, srvConf):
                     stepCount += 1
                     #print(str(getLocationReply['x']) + " " + str(getLocationReply['y']) + "asdfasdfasdf")
                 if (cornerX == 0 and cornerY == 0):
-                    if (int(getLocationReply['y']) >= 400):
+                    if (int(getLocationReply['y']) >= 350):
                         botSocket.sendRecvMessage(
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 0
-                    elif (int(getLocationReply['y']) <= 200):
+                    elif (int(getLocationReply['y']) <= 150):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 1
-                    if (int(getLocationReply['x'] <= 200)):
+                    if (int(getLocationReply['x'] <= 150)):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
                         stepCount += 1
-                    elif (int(getLocationReply['x']) >= 400):
+                    elif (int(getLocationReply['x']) >= 350):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
                         stepCount += 1
                 if (cornerX == 1000 and cornerY == 0):
-                    if (int(getLocationReply['y']) >= 400):
+                    if (int(getLocationReply['y']) >= 350):
                         botSocket.sendRecvMessage(
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 0
-                    elif (int(getLocationReply['y']) <= 200):
+                    elif (int(getLocationReply['y']) <= 150):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 1
-                    if (int(getLocationReply['x'] <= 600)):
+                    if (int(getLocationReply['x'] <= 650)):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
                         stepCount += 1
-                    elif (int(getLocationReply['x']) >= 800):
+                    elif (int(getLocationReply['x']) >= 850):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
                         stepCount += 1
                 if (cornerX == 0 and cornerY == 1000):
-                    if (int(getLocationReply['y']) <= 600):
+                    if (int(getLocationReply['y']) <= 650):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 0
-                    elif (int(getLocationReply['y']) >= 800):
+                    elif (int(getLocationReply['y']) >= 850):
                         botSocket.sendRecvMessage(
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 1
-                    if (int(getLocationReply['x'] <= 200)):
+                    if (int(getLocationReply['x'] <= 150)):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
                         stepCount += 1
-                    elif (int(getLocationReply['x']) >= 400):
+                    elif (int(getLocationReply['x']) >= 350):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
                         stepCount += 1
                 if (cornerX == 1000 and cornerY == 1000):
-                    if (int(getLocationReply['y']) <= 600):
+                    if (int(getLocationReply['y']) <= 650):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 0
-                    elif (int(getLocationReply['y']) >= 800):
+                    elif (int(getLocationReply['y']) >= 850):
                         botSocket.sendRecvMessage(
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 1
-                    if (int(getLocationReply['x'] <= 600)):
+                    if (int(getLocationReply['x'] <= 650)):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
                         stepCount += 1
-                    elif (int(getLocationReply['x']) >= 800):
+                    elif (int(getLocationReply['x']) >= 850):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
                         stepCount += 1
 
@@ -183,6 +184,7 @@ def checkShot():
     global smallestDistance
     global savedDirection
     global stepCount
+    global saved
     stepDif = stepCount - shotCount
     if ((stepDif + 8) * 40 >= smallestDistance):
         scanReply = botSocket.sendRecvMessage(
@@ -190,6 +192,7 @@ def checkShot():
         stepCount += 1
         smallestDistance = scanReply['distance']
         binarySearch(0, 128)
+
 def binarySearch(l, r):
     # Check base case
     if r >= l:
