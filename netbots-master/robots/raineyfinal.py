@@ -20,7 +20,6 @@ robotName = "raineyfinal"
 currentMode = "scan"
 savedDirection = -1
 smallestDistance = 0
-vertical = True
 stepCount = 0
 previousX = -1
 previousY = -1
@@ -40,75 +39,25 @@ def play(botSocket, srvConf):
     global savedDirection
     global smallestDistance
     global thisDirection
+    global shotX
+    global shotY
+    currentMode = "scan"
+    savedDirection = -1
+    smallestDistance = 0
+    stepCount = 0
+    previousX = -1
+    previousY = -1
+    shotX = -1
+    shotY = -1
+    stepCount = 0
+    shotCount = 0
+    thisDirection = -1
     gameNumber = 0
     movingF = False
     movingI = True
     start = True
+
     while True:
-        try:
-            # Get information to determine if bot is alive (health > 0) and if a new game has started.
-            getInfoReply = botSocket.sendRecvMessage({'type': 'getInfoRequest'})
-        except nbipc.NetBotSocketException as e:
-            # We are always allowed to make getInfoRequests, even if our health == 0. Something serious has gone wrong.
-            log(str(e), "FAILURE")
-            log("Is netbot server still running?")
-            quit()
-        health = getInfoReply['health']
-        if getInfoReply['health'] == 0:
-            # we are dead, there is nothing we can do until we are alive again.
-            continue
-
-        if getInfoReply['gameNumber'] != gameNumber:
-            # A new game has started. Record new gameNumber and reset any variables back to their initial state
-            gameNumber = getInfoReply['gameNumber']
-            log("Game " + str(gameNumber) + " has started. Points so far = " + str(getInfoReply['points']))
-
-            # start every new game in scan mode. No point waiting if we know we have not fired our canon yet.
-
-            # lighthouse will scan the area in this many slices (think pizza slices with this bot in the middle)
-            scanSlices = 32
-            global currentMode
-            global savedDirection
-            global smallestDistance
-            # This is the radians of where the next scan will be
-            nextScanSlice = 0
-
-            # Each scan will be this wide in radians (note, math.pi*2 radians is the same as 360 Degrees)
-            scanSliceWidth = math.pi * 2 / scanSlices
-            try:
-                # get location data from server
-                getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
-
-                # find the closest corner:
-                if (getLocationReply['x'] < (srvConf['arenaSize'] / 2)):
-                    cornerX = 200
-                else:
-                    cornerX = 800
-
-                if (getLocationReply['y'] < (srvConf['arenaSize'] / 2)):
-                    cornerY = 200
-                else:
-                    cornerY = 800
-
-                # find the angle from where we are to the closest corner
-                radians = nbmath.angle(getLocationReply['x'], getLocationReply['y'], cornerX, cornerY)
-
-                # Turn in a new direction
-                botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': radians})
-
-                # Request we start accelerating to max speed
-                botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 75})
-                movingI = True
-                # log some useful information.
-                degrees = str(int(round(math.degrees(radians))))
-                log("Requested to go " + degrees + " degress at max speed.", "INFO")
-
-            except nbipc.NetBotSocketException as e:
-                # Consider this a warning here. It may simply be that a request returned
-                # an Error reply because our health == 0 since we last checked. We can
-                # continue until the next game starts.
-                log(str(e), "WARNING")
-            continue
         try:
             checkShot()
             getLocationReply = botSocket.sendRecvMessage({'type': 'getLocationRequest'})
@@ -149,6 +98,7 @@ def play(botSocket, srvConf):
                 if (previousX == getLocationReply['x'] and previousY == getLocationReply['y']):
                     botSocket.sendRecvMessage({'type': 'setSpeedRequest', 'requestedSpeed': 50})
                     stepCount += 1
+                    #print(str(getLocationReply['x']) + " " + str(getLocationReply['y']) + "asdfasdfasdf")
                 if (cornerX == 0 and cornerY == 0):
                     if (int(getLocationReply['y']) >= 400):
                         botSocket.sendRecvMessage(
@@ -159,6 +109,12 @@ def play(botSocket, srvConf):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 1
+                    if (int(getLocationReply['x'] <= 200)):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
+                        stepCount += 1
+                    elif (int(getLocationReply['x']) >= 400):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
+                        stepCount += 1
                 if (cornerX == 1000 and cornerY == 0):
                     if (int(getLocationReply['y']) >= 400):
                         botSocket.sendRecvMessage(
@@ -169,6 +125,12 @@ def play(botSocket, srvConf):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
                         stepCount += 1
                         thisDirection = 1
+                    if (int(getLocationReply['x'] <= 600)):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
+                        stepCount += 1
+                    elif (int(getLocationReply['x']) >= 800):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
+                        stepCount += 1
                 if (cornerX == 0 and cornerY == 1000):
                     if (int(getLocationReply['y']) <= 600):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
@@ -179,6 +141,12 @@ def play(botSocket, srvConf):
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 1
+                    if (int(getLocationReply['x'] <= 200)):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
+                        stepCount += 1
+                    elif (int(getLocationReply['x']) >= 400):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
+                        stepCount += 1
                 if (cornerX == 1000 and cornerY == 1000):
                     if (int(getLocationReply['y']) <= 600):
                         botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi / 2})
@@ -189,6 +157,12 @@ def play(botSocket, srvConf):
                             {'type': 'setDirectionRequest', 'requestedDirection': (3 * math.pi) / 2})
                         stepCount += 1
                         thisDirection = 1
+                    if (int(getLocationReply['x'] <= 600)):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': 0 / 2})
+                        stepCount += 1
+                    elif (int(getLocationReply['x']) >= 800):
+                        botSocket.sendRecvMessage({'type': 'setDirectionRequest', 'requestedDirection': math.pi})
+                        stepCount += 1
 
             previousX = getLocationReply['x']
             previousY = getLocationReply['y']
@@ -196,6 +170,7 @@ def play(botSocket, srvConf):
             # Consider this a warning here. It may simply be that a request returned
             # an Error reply because our health == 0 since we last checked. We can
             # continue until the next game starts.
+            start = False
             log(str(e), "WARNING")
             continue
 
