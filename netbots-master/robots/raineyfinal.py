@@ -189,7 +189,7 @@ def checkShot():
             {'type': 'scanRequest', 'startRadians': 0, 'endRadians': 2 * math.pi})
         stepCount += 1
         smallestDistance = scanReply['distance']
-        binarySearch(0, 64)
+        binarySearch(0, 128)
 def binarySearch(l, r):
     # Check base case
     if r >= l:
@@ -205,7 +205,7 @@ def binarySearch(l, r):
         mid = (l + r) / 2
         # If element is present at the middle itself
         if (mid >= r - 1):
-            fireDirection = ((((mid + r) / 2) / 64) * 2 * math.pi)
+            fireDirection = ((((mid + r) / 2) / 128) * 2 * math.pi)
             savedDirection = (mid + r) / 2
             currentMode = "wait"
             tempX = smallestDistance * math.cos(fireDirection)
@@ -228,7 +228,7 @@ def binarySearch(l, r):
             shotY = tempY
             return
         elif (mid <= l + 1):
-            fireDirection = ((((mid + l) / 2) / 64) * 2 * math.pi)
+            fireDirection = ((((mid + l) / 2) / 128) * 2 * math.pi)
             savedDirection = (mid + l) / 2
             currentMode = "wait"
             tempX = smallestDistance * math.cos(fireDirection)
@@ -251,7 +251,7 @@ def binarySearch(l, r):
             shotY = tempY
             return
         scanReply = botSocket.sendRecvMessage(
-            {'type': 'scanRequest', 'startRadians': (l / 64) * 2 * math.pi, 'endRadians': (mid / 64) * 2 * math.pi})
+            {'type': 'scanRequest', 'startRadians': (l / 128) * 2 * math.pi, 'endRadians': (mid / 128) * 2 * math.pi})
         stepCount += 1
         #print("scan" + str((l/128) * 2 * math.pi) + " " + str((mid/128) * 2 * math.pi))
         if ((scanReply['distance'] >= smallestDistance - float(30)) and (scanReply['distance'] <= smallestDistance + float(30))):
